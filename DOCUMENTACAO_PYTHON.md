@@ -1,782 +1,494 @@
-# 📚 Documentação do Sistema de Navegação com Dijkstra - Python
+# Documentação do Projeto Grafo---AED2
 
-**Repositório Original:** [Grafo---AED2](https://github.com/christianps-dev/Grafo---AED2)
+## Sobre Este Projeto
 
----
+Este é um sistema de cálculo de rotas que utiliza o algoritmo de Dijkstra para encontrar o caminho mais curto entre dois pontos em um mapa. O projeto integra processamento de dados geográficos (conversão de coordenadas, parsing de arquivos OSM) com visualização gráfica interativa.
 
-## 📖 Índice
-
-1. [Visão Geral](#visão-geral)
-2. [Módulos e Classes](#módulos-e-classes)
-3. [Funções Principais](#funções-principais)
-4. [Como Usar](#como-usar)
+**Linguagens:** Python (63.5%) e C (36.5%)  
+**Documentação focada:** Código Python
 
 ---
 
-## 🎯 Visão Geral
+## Estrutura Geral
 
-Este projeto implementa um **Sistema de Navegação Integrado** que utiliza o **Algoritmo de Dijkstra** para encontrar o menor caminho entre dois pontos em um mapa. O sistema é capaz de:
-
-- **Importar mapas** em formato OSM (OpenStreetMap)
-- **Converter coordenadas** de WGS84 para UTM
-- **Construir grafos** com lista de adjacência
-- **Calcular rotas** usando o Algoritmo de Dijkstra com Heap Min
-- **Visualizar resultados** através de interface gráfica com PyQt6
-
----
-
-## 📦 Módulos e Classes
-
-### 1️⃣ **heap.py** - Estrutura de Dados: Heap Mínimo
-
-#### 📌 Classe: `Heap`
-
-Uma implementação de **Heap Mínimo** (Min-Heap) usada para otimizar o Algoritmo de Dijkstra.
-
-##### 🔧 **Métodos Privados**
-
-```python
-def __parente(self, index: int) -> int
 ```
-**O que faz:** Calcula o índice do nó pai em um heap binário.
-
-**Explicação fácil:** Imagine uma árvore invertida onde cada nó tem no máximo 2 filhos. Este método encontra quem é o "pai" de um elemento.
-
-**Fórmula:** `(index - 1) // 2`
+src/
+├── main.py                  # Ponto de entrada - interface gráfica
+├── interface.py             # GUI com PyQt6
+├── djikstra_geometrico.py   # Algoritmo de Dijkstra e estruturas de grafo
+├── conversor_osm.py         # Processamento de dados de mapas
+├── heap.py                  # Heap mínimo (estrutura de dados)
+├── config.py                # Configurações globais
+└── __init__.py
+```
 
 ---
 
-```python
-def __esq(self, index: int) -> int
-```
-**O que faz:** Calcula o índice do filho esquerdo de um nó.
+## Módulos
 
-**Explicação fácil:** Em um heap, cada elemento pode ter um filho à esquerda. Este método encontra onde ele fica.
+### heap.py - Min-Heap para Dijkstra
 
-**Fórmula:** `(2 * index + 1)`
+Implementa uma fila de prioridade usando heap mínimo. Estrutura essencial para a eficiência do algoritmo de Dijkstra.
+
+#### Classe Heap
+
+**Atributos privados:**
+- `__heap`: Lista interna que armazena os elementos
+
+**Métodos auxiliares privados:**
+
+- `__parente(index)` → índice do pai: `(index - 1) // 2`
+- `__esq(index)` → índice do filho esquerdo: `2 * index + 1`  
+- `__dir(index)` → índice do filho direito: `2 * index + 2`
+
+**Métodos públicos:**
+
+| Método | Retorno | O que faz |
+|--------|---------|----------|
+| `size()` | int | Quantidade de elementos no heap |
+| `isEmpty()` | bool | Verifica se está vazio |
+| `peekMin()` | tuple | Retorna o menor sem remover |
+| `insert(key)` | - | Adiciona elemento e reorganiza |
+| `extractMin()` | tuple | Remove e retorna o menor |
+| `heapifyUp(index)` | - | Move elemento para cima mantendo ordem |
+| `heapifyDown(index, tam)` | - | Move elemento para baixo mantendo ordem |
+
+**Como funciona na prática:**
+
+O heap mantém o **menor elemento sempre no topo** (índice 0). Quando inserimos algo novo:
+1. Coloca no final
+2. Compara com o pai
+3. Se for menor, troca e repete com o novo pai
+
+Na extração:
+1. Guarda o elemento do topo (o mínimo)
+2. Move o último para o topo
+3. O deixa "cair" até o lugar certo
+
+Lança `RuntimeError` se tentar acessar heap vazio.
 
 ---
 
+### djikstra_geometrico.py - Algoritmo e Estruturas
+
+Contém o núcleo do sistema: o algoritmo de Dijkstra, estruturas de vértices/arestas e funções para manipular grafos.
+
+#### Classes
+
+**Vertice**
 ```python
-def __dir(self, index: int) -> int
+Vertice(v_id: int, x: float, y: float)
 ```
-**O que faz:** Calcula o índice do filho direito de um nó.
+Representa um ponto no mapa com ID único e coordenadas (x, y) em pixels.
 
-**Explicação fácil:** Assim como o esquerdo, cada nó pode ter um filho à direita.
+**Aresta**
+```python
+Aresta(orig: int, dest: int, tipo: int)
+```
+Conexão entre dois vértices.
+- `tipo=1`: mão única (sentido único)
+- `tipo=2`: mão dupla (ambos os sentidos)
 
-**Fórmula:** `(2 * index + 2)`
+#### Funções
+
+**calc_dist(x0, y0, x1, y1) → float**
+
+Distância euclidiana entre dois pontos: `√((x0-x1)² + (y0-y1)²)`
+
+Retorna um valor em pixels (será convertido para metros depois se necessário).
 
 ---
 
-##### 🔧 **Métodos Públicos**
+**construir_grafo(vertices, arestas) → list**
 
-```python
-def size(self) -> int
+Monta a lista de adjacência do grafo.
+
+Para cada aresta:
+1. Calcula distância entre os dois vértices
+2. Adiciona à lista do vértice de origem
+3. Se mão dupla, também adiciona a volta
+
+Retorna: lista onde `grafo[i]` contém tuplas `(distância, id_vizinho)`
+
+Exemplo: Se há uma aresta de 0→1 com distância 10 e tipo 2:
 ```
-**O que faz:** Retorna a quantidade de elementos no heap.
-
-**Explicação fácil:** Conta quantos elementos estão guardados no heap.
+grafo[0] = [..., (10.0, 1)]
+grafo[1] = [..., (10.0, 0)]
+```
 
 ---
 
-```python
-def isEmpty(self) -> bool
-```
-**O que faz:** Verifica se o heap está vazio.
+**dijkstra(grafo, vertices, inicio, fim) → dict ou None**
 
-**Explicação fácil:** Retorna `True` se não há elementos, `False` caso contrário.
-
----
-
-```python
-def heapifyUp(self, index: int)
-```
-**O que faz:** Move um elemento para cima na árvore até manter a propriedade do heap.
-
-**Explicação fácil:** Se um elemento é menor que seu pai, ele "sobe" de lugar. Continua subindo até encontrar seu lugar correto. Isto garante que o menor elemento sempre fica no topo.
+O algoritmo em si. Retorna o caminho mais curto e estatísticas.
 
 **Processo:**
-1. Compara o elemento com seu pai
-2. Se for menor, troca de lugar
-3. Repete com o novo pai
-4. Para quando não conseguir mais subir
+
+1. Inicializa distâncias como "infinito" (1e9), menos a origem (0)
+2. Cria heap com o vértice inicial
+3. Enquanto há vértices no heap:
+   - Remove o com menor distância
+   - Para cada vizinho, tenta atualizar a distância
+   - Se achar caminho mais curto, adiciona vizinho ao heap
+4. Reconstrói o caminho andando para trás do destino até origem
+5. Calcula estatísticas e formata resultado
+
+**Retorno - dicionário com:**
+```python
+{
+    "caminho_ids": [0, 2, 5, 7],          # Sequência de vértices
+    "distancia_pixels": 45.3,              # Em pixels
+    "distancia_metros": 90.6,              # Pixels * FATOR_ESCALA
+    "nos_explorados": 12,                  # Quantos vértices visitou
+    "tempo_ms": 2.45                       # Tempo de execução
+}
+```
+
+Se não houver caminho: retorna `None` e imprime mensagem no console.
+
+**Imprime no console:**
+- Tempo total de processamento
+- Quantidade de nós visitados
+- Distâncias em pixels e metros
 
 ---
+
+**carregar_mapa_poly(caminho_arquivo) → (list, list)**
+
+Lê arquivo `.poly` e reconstrói vértices e arestas.
+
+**Formato esperado do arquivo:**
+```
+5 2 0 1                    # total_verts, colunas, linhas, camadas
+0 0.0 0.0                  # id, x, y (vértices)
+1 10.5 5.2
+...
+4 1                        # total_arestas, tipo
+0 0 1 2                    # id, origem, destino, tipo (arestas)
+1 1 2 2
+...
+0                          # marcador de fim
+```
+
+Retorna tupla: `(lista_de_Vertice, lista_de_Aresta)`
+
+---
+
+### conversor_osm.py - Processamento de Mapas
+
+Converte dados brutos do OpenStreetMap para um formato interno processável.
+
+#### Classes
+
+**Node**
+
+Nó do arquivo OSM antes de ser convertido.
+```python
+Node(id_original, lat, lon, id_interno)
+```
+Armazena coordenadas em latitude/longitude e posteriormente em UTM (x, y).
+
+**Way**
+
+Sequência de nós que forma uma rua.
+```python
+Way()
+```
+- `node_ids`: lista de IDs dos nós que formam a rua
+- `is_oneway`: booleano para rua de mão única
+
+#### Funções
+
+**converter_para_utm(lat_deg, lon_deg) → (float, float)**
+
+Converte GPS (latitude/longitude do WGS84) para UTM (sistema local em metros).
+
+Usa fórmulas de projeção com parâmetros:
+- Raio terrestre (WGS84): 6,378,137 m
+- Meridiano central para Brasil: -45°
+- Fator de escala: 0.9996
+
+Retorna tupla `(x_utm, y_utm)` em metros.
+
+**Não precisa saber:** As fórmulas complexas implementadas aqui. O importante é que transforma "latitude/longitude" em "metros locais".
+
+---
+
+**reduzir_escala(pontos, redutor)**
+
+Normaliza e redimensiona coordenadas para caber na tela.
+
+Operação:
+1. Encontra o mínimo x e y dos pontos
+2. Subtrai esses valores (move tudo para origem 0,0)
+3. Divide por `redutor` (escala para tamanho razoável)
+
+Modificação **in-place**: altera os objetos diretamente.
+
+---
+
+**parse_osm(filename) → str**
+
+Função principal do módulo. Lê arquivo OSM e gera `.poly`.
+
+**O que realmente faz:**
+
+1. **Lê arquivo XML** do OpenStreetMap
+2. **Extrai nós e vias** (roads/highways)
+3. **Filtra vias válidas** - apenas tipos "highway" reconhecidos (motorway, residential, etc.)
+4. **Trata mão única** - se `oneway=-1`, inverte direção
+5. **Converte coordenadas** WGS84 → UTM
+6. **Redimensiona** para caber na tela
+7. **Inverte eixo Y** - porque gráficos usam Y invertido
+8. **Salva resultado** em arquivo `.poly`
+
+**Importante:** Não mantém TODOS os nós do OSM, apenas os que são parte de vias válidas. Isso reduz dados significativamente.
+
+Retorna caminho do arquivo gerado ou string vazia em caso de erro.
+
+---
+
+### main.py - Interface Gráfica
+
+Ponto de entrada da aplicação.
 
 ```python
-def heapifyDown(self, index: int, tam: int)
+def main():
+    app = QApplication(sys.argv)      # Cria aplicação Qt
+    janela = Janela()                 # Cria janela principal
+    janela.show()                     # Mostra na tela
+    sys.exit(app.exec())              # Loop de eventos
 ```
-**O que faz:** Move um elemento para baixo na árvore, mantendo a propriedade do heap.
 
-**Explicação fácil:** Se um elemento é maior que seus filhos, ele "desce" de lugar. O elemento vai para baixo até encontrar seu lugar correto.
-
-**Processo:**
-1. Compara o elemento com seus filhos
-2. Identifica o menor dos filhos
-3. Se o elemento for maior, troca com o menor filho
-4. Repete com a nova posição
-5. Para quando não conseguir mais descer
+A interface de CLI foi **removida** em favor da GUI com PyQt6.
 
 ---
 
-```python
-def peekMin(self) -> tuple
-```
-**O que faz:** Retorna o menor elemento sem removê-lo.
+### interface.py - GUI com PyQt6
 
-**Explicação fácil:** Olha qual é o elemento mais pequeno, mas não tira ele do heap.
+Interface gráfica completa para visualização e interação com o mapa.
 
-**Exceção:** Lança erro se o heap está vazio.
+#### Classe GrafoItem
 
----
-
-```python
-def insert(self, key: tuple)
-```
-**O que faz:** Adiciona um novo elemento ao heap.
-
-**Explicação fácil:** 
-1. Coloca o elemento no final da lista
-2. Chama `heapifyUp` para ele subir até o lugar certo
-
----
-
-```python
-def extractMin(self) -> tuple
-```
-**O que faz:** Remove e retorna o menor elemento do heap.
-
-**Explicação fácil:**
-1. Guarda o elemento do topo (o menor)
-2. Move o último elemento para o topo
-3. Chama `heapifyDown` para reorganizar
-4. Devolve o menor elemento que foi guardado
-
-**Exceção:** Lança erro se o heap está vazio.
-
----
-
----
-
-### 2️⃣ **djikstra_geometrico.py** - Algoritmo de Dijkstra
-
-#### 📌 Classe: `Vertice`
-
-Representa um ponto no mapa.
-
-```python
-class Vertice:
-    def __init__(self, v_id: int, x: float, y: float)
-```
+Renderiza o grafo na tela (herda de `QGraphicsItem`).
 
 **Atributos:**
-- `id`: Identificador único do vértice
-- `x`: Coordenada X (em pixels após escala)
-- `y`: Coordenada Y (em pixels após escala)
+- `janela`: referência à janela principal
+- `_bounding_rect`: retângulo que engloba todo o grafo
+- `linhas_unica`: linhas das arestas de mão única
+- `linhas_dupla`: linhas das arestas de mão dupla
+- `path_setas_unica`: setas desenhadas nas arestas
 
-**Explicação fácil:** Um vértice é um ponto no mapa, como uma encruzilhada em uma cidade. Cada um tem um ID único e uma posição (x, y).
+**Métodos:**
 
----
+`atualizar_geometria()`
 
-#### 📌 Classe: `Aresta`
+Recalcula geometria quando mapa é carregado. Encontra limites, cria linhas e setas. Chamado sempre que mapa muda.
 
-Representa uma conexão entre dois vértices.
+`boundingRect() → QRectF`
 
-```python
-class Aresta:
-    def __init__(self, orig: int, dest: int, tipo: int)
-```
+Retorna a caixa que engloba todo o grafo.
 
-**Atributos:**
-- `orig`: ID do vértice de origem
-- `dest`: ID do vértice de destino
-- `tipo`: 
-  - `1` = Mão única (só vai de origem para destino)
-  - `2` = Mão dupla (vai nos dois sentidos)
+`paint(painter, option, widget)`
 
-**Explicação fácil:** Uma aresta é uma rua que conecta dois pontos. Pode ser de mão única ou dupla.
-
----
-
-#### 🔧 **Funções Globais**
-
-```python
-def calc_dist(x0: float, y0: float, x1: float, y1: float) -> float
-```
-
-**O que faz:** Calcula a distância euclidiana entre dois pontos.
-
-**Explicação fácil:** Usa a fórmula da distância para saber quantos "passos" tem entre dois pontos em um plano.
-
-**Fórmula:** `√((x0-x1)² + (y0-y1)²)`
-
-**Exemplo:** Distância entre (0,0) e (3,4) é 5.
-
----
-
-```python
-def construir_grafo(vertices: list, arestas: list) -> list
-```
-
-**O que faz:** Constrói uma **Lista de Adjacência** a partir de vértices e arestas.
-
-**Explicação fácil:** 
-Cria uma estrutura que diz: "Do ponto A, você pode ir para B (distância 10) e C (distância 5)". Isso facilita encontrar os vizinhos de cada ponto.
-
-**Processo:**
-1. Cria uma lista vazia para cada vértice
-2. Para cada aresta:
-   - Calcula a distância entre origem e destino
-   - Adiciona na lista do vértice de origem
-   - Se for mão dupla, também adiciona a volta (destino → origem)
-
-**Retorna:** Lista onde cada posição i contém uma lista de tuplas (distância, vizinho)
-
----
-
-```python
-def dijkstra(grafo: list, vertices: list, inicio: int, fim: int) -> dict
-```
-
-**O que faz:** Encontra o menor caminho entre dois vértices usando o Algoritmo de Dijkstra.
-
-**Explicação fácil:**
-Imagina que você está em uma cidade e quer ir do ponto A ao ponto B pelo caminho mais curto. O Dijkstra marca cada ponto com a menor distância encontrada até agora. Começa pelo início, e vai explorando pontos cada vez mais próximos do destino.
-
-**Processo:**
-1. Inicializa todas as distâncias como infinito, menos o início (distância 0)
-2. Cria um heap com o vértice de início
-3. Enquanto o heap não está vazio:
-   - Retira o vértice com menor distância
-   - Para cada vizinho deste vértice:
-     - Se encontrar um caminho mais curto, atualiza a distância
-     - Adiciona o vizinho ao heap
-4. Reconstrói o caminho andando para trás do fim até o início
-5. Retorna um dicionário com:
-   - `caminho_ids`: Lista de vértices do caminho
-   - `distancia_pixels`: Distância em pixels
-   - `distancia_metros`: Distância em metros (usando FATOR_ESCALA)
-   - `nos_explorados`: Quantos vértices foram visitados
-   - `tempo_ms`: Tempo de processamento em milissegundos
-
-**Retorna:** Dicionário com informações da rota, ou `None` se não há caminho.
-
----
-
-```python
-def carregar_mapa_poly(caminho_arquivo) -> tuple
-```
-
-**O que faz:** Lê um arquivo `.poly` e carrega vértices e arestas.
-
-**Explicação fácil:**
-O arquivo `.poly` é um formato customizado que guarda informações do mapa. Este função lê este arquivo e cria objetos `Vertice` e `Aresta` em Python.
-
-**Formato do arquivo `.poly`:**
-```
-<total_vertices>  <cols>  <linhas>  <camadas>
-<id>  <x>  <y>
-... (total_vertices linhas)
-<total_arestas>  <linhas_de_arestas>
-<id>  <orig>  <dest>  <tipo>
-... (total_arestas linhas)
-0
-```
-
-**Retorna:** Tupla (lista_vertices, lista_arestas)
-
----
-
----
-
-### 3️⃣ **conversor_osm.py** - Conversão de Mapas OSM
-
-#### 📌 Classe: `Node`
-
-Representa um nó do arquivo OSM.
-
-```python
-class Node:
-    def __init__(self, id_original: int, lat: float, lon: float, id_interno: int)
-```
-
-**Atributos:**
-- `id_original`: ID no arquivo OSM original
-- `lat`: Latitude (WGS84)
-- `lon`: Longitude (WGS84)
-- `x`: Coordenada X em UTM (calculada depois)
-- `y`: Coordenada Y em UTM (calculada depois)
-- `id_interno`: ID sequencial (0, 1, 2, ...)
-
-**Explicação fácil:** Um nó é um ponto no mapa vindo do OpenStreetMap. Ele tem coordenadas em latitude/longitude que depois são convertidas para um sistema de coordenadas local (UTM).
-
----
-
-#### 📌 Classe: `Way`
-
-Representa um caminho (rua) no arquivo OSM.
-
-```python
-class Way:
-    def __init__(self)
-```
-
-**Atributos:**
-- `node_ids`: Lista de IDs dos nós que formam este caminho
-- `is_oneway`: Booleano indicando se é mão única
-
-**Explicação fácil:** Uma forma é uma sequência de pontos que forma uma rua. Por exemplo, uma rua pode passar pelos pontos [1, 2, 3, 4].
-
----
-
-#### 🔧 **Funções Globais**
-
-```python
-def converter_para_utm(lat_deg: float, lon_deg: float) -> tuple
-```
-
-**O que faz:** Converte coordenadas de WGS84 (latitude/longitude) para UTM.
-
-**Explicação fácil:**
-- **WGS84** é o sistema que GPS usa (latitude entre -90 e +90, longitude entre -180 e +180)
-- **UTM** é um sistema local em metros que funciona melhor para mapas pequenos
-
-A conversão usa matemática complexa com parâmetros elipsoidais:
-- `A_WGS84`: Raio maior da Terra ≈ 6.378.137 metros
-- `F_WGS84`: Achatamento da Terra
-- `K0`: Fator de escala da projeção (0.9996)
-- `LON0_DEG`: Meridiano central para a zona (-45° para Brasil)
-
-**Retorna:** Tupla (x_utm, y_utm)
-
----
-
-```python
-def reduzir_escala(pontos: list, redutor: float)
-```
-
-**O que faz:** Normaliza e redimensiona as coordenadas para caber na tela.
-
-**Explicação fácil:**
-1. Encontra o ponto mais à esquerda e mais em cima
-2. Subtrai estas coordenadas de todos os pontos (normaliza)
-3. Divide por um fator redutor (escala para caber na tela)
-
-**Efeito:** Todos os pontos começam em (0, 0) e ficam dentro de um tamanho razoável.
-
----
-
-```python
-def parse_osm(filename: str) -> str
-```
-
-**O que faz:** Lê um arquivo OSM completo e gera um arquivo `.poly`.
-
-**Explicação fácil:**
-1. Lê o arquivo XML do OpenStreetMap
-2. Extrai todos os nós (pontos) e vias (ruas)
-3. Converte coordenadas de WGS84 para UTM
-4. Redimensiona para caber na tela
-5. Inverte eixo Y (porque gráficos usam Y invertido)
-6. Salva tudo em um arquivo `.poly`
-
-**Processo detalhado:**
-1. **Parsing dos nós:** Encontra cada `<node>` no XML e cria um objeto `Node`
-2. **Parsing das vias:** Encontra cada `<way>` e verifica se é mão única
-3. **Tratamento de mão única reversa:** Se `oneway=-1`, inverte a ordem dos nós
-4. **Normalização:** Reduz escala para caber em uma janela gráfica
-5. **Inversão de Y:** Ajusta coordenadas para sistema de gráficos
-6. **Escrita:** Salva em formato `.poly` no diretório `out/`
-
-**Retorna:** Caminho do arquivo `.poly` gerado
-
----
-
----
-
-### 4️⃣ **main.py** - Interface de Linha de Comando
-
-#### 🔧 **Funções de Controle**
-
-```python
-def limpar_tela()
-```
-
-**O que faz:** Limpa o terminal.
-
-**Explicação fácil:** Funciona em Windows (`cls`) e Linux/Mac (`clear`).
-
----
-
-```python
-def pausar()
-```
-
-**O que faz:** Pausa o programa até o usuário pressionar Enter.
-
-**Explicação fácil:** Espera o usuário ler a mensagem e confirmar para continuar.
-
----
-
-```python
-def exibir_menu() -> str
-```
-
-**O que faz:** Mostra um menu com 3 opções e retorna a escolha.
-
-**Opções:**
-1. Importar novo mapa OSM, converter para POLY e calcular rota
-2. Carregar mapa POLY existente e calcular rota
-3. Sair
-
----
-
-```python
-def executar_sistema()
-```
-
-**O que faz:** Loop principal do programa. Executa continuamente até o usuário sair.
-
-**Fluxo:**
-1. Mostra menu
-2. Se opção 1: Carrega arquivo OSM, converte para POLY
-3. Se opção 2: Carrega arquivo POLY existente
-4. Se arquivo existir:
-   - Carrega vértices e arestas
-   - Constrói grafo
-   - Pede ao usuário origem e destino
-   - Executa Dijkstra
-   - Mostra resultado
-5. Volta ao menu
-
----
-
----
-
-### 5️⃣ **interface.py** - Interface Gráfica (PyQt6)
-
-#### 📌 Classe: `GrafoItem`
-
-Renderiza o grafo na tela usando PyQt6.
-
-```python
-class GrafoItem(QGraphicsItem)
-```
-
-**O que faz:** Desenha vértices, arestas, rotas, e toda a visualização gráfica do mapa.
-
-##### 🔧 **Métodos principais**
-
-```python
-def atualizar_geometria()
-```
-
-**O que faz:** Recalcula as linhas das arestas quando o mapa é carregado.
-
-**Processo:**
-1. Encontra os limites do mapa (min/max x e y)
-2. Cria retângulo de renderização com margem
-3. Para cada aresta:
-   - Se for mão única: encurta a linha e adiciona seta
-   - Se for mão dupla: cria linha simples
-4. Prepara estruturas para desenho eficiente
-
----
-
-```python
-def boundingRect() -> QRectF
-```
-
-**O que faz:** Retorna a área retangular que engloba todo o grafo.
-
----
-
-```python
-def paint(painter, option, widget)
-```
-
-**O que faz:** Desenha tudo na tela.
-
-**Elementos desenhados:**
-- Arestas mão dupla (azul)
-- Arestas mão única com setas (verde)
+Desenha na tela:
+- Arestas de mão dupla (azul)
+- Arestas de mão única com setas (verde)
 - Pesos das arestas (se ativado)
-- Rota encontrada (laranja destacado)
-- Vértices com cores especiais:
-  - Verde: Origem
-  - Vermelho: Destino
-  - Amarelo: Vértice temporário
-  - Cinza: Normal
+- Rota encontrada (laranja)
+- Vértices com cores: verde (origem), vermelho (destino), amarelo (temp), cinza (normal)
 
 ---
 
-#### 📌 Classe: `VisualizadorMapa`
+#### Classe VisualizadorMapa
 
-Gerencia visualização e interações do mapa.
+Visualizador interativo do mapa (herda de `QGraphicsView`).
 
-```python
-class VisualizadorMapa(QGraphicsView)
-```
+**Interações:**
+- **Roda do mouse**: zoom in/out (±20%)
+- **Clique direito**: executa ação conforme modo selecionado
 
-##### 🔧 **Métodos principais**
-
-```python
-def wheelEvent(self, event)
-```
-
-**O que faz:** Permite zoom com roda do mouse.
-
-**Funcionamento:**
-- Roda para cima: Zoom in (20% maior)
-- Roda para baixo: Zoom out (20% menor)
+Detecta vértices próximos ao clique (raio de tolerância ajustado por zoom).
 
 ---
 
-```python
-def mousePressEvent(self, event)
-```
+#### Classe Janela
 
-**O que faz:** Trata cliques do mouse.
+Janela principal da aplicação.
 
-**Clique direito:** Executa ação conforme o modo selecionado:
-- Buscar caminho: Seleciona origem/destino
-- Adicionar vértice: Cria novo ponto
-- Remover vértice: Deleta ponto clicado
-- Adicionar/remover aresta: Conecta ou desconecta pontos
+**Atributos principais:**
+- `origem_selecionada`, `destino_selecionado`: IDs dos vértices
+- `caminho_resultado`: lista de vértices da rota
+- `vertices`, `arestas`: dados do grafo
+- `grafo`: lista de adjacência
 
----
+**Métodos importantes:**
 
-#### 📌 Classe: `Janela`
+`importar_mapa()`
 
-Interface principal da aplicação.
+Abre diálogo para escolher arquivo `.poly` e carrega.
 
-```python
-class Janela(QMainWindow)
-```
+`converter_usar_osm()`
 
-**O que faz:** Cria a janela principal com painéis de controle e visualização.
+Abre diálogo para arquivo `.osm`, converte via `parse_osm()` e carrega resultado.
 
-##### 🔧 **Atributos principais**
+`calcular_caminho()`
 
-```
-- origem_selecionada: ID do vértice de origem
-- destino_selecionado: ID do vértice de destino
-- caminho_resultado: Lista de vértices da rota encontrada
-- vertices: Lista de todos os vértices
-- arestas: Lista de todas as arestas
-- grafo: Lista de adjacência
-```
+Executa Dijkstra com origem/destino selecionados. Mostra estatísticas na interface.
 
-##### 🔧 **Métodos principais**
+`tratar_clique_mapa(x, y)`
 
-```python
-def init_ui()
-```
+Processa cliques direitos conforme modo:
+1. **Buscar Caminho**: seleciona origem (1º clique) e destino (2º clique)
+2. **Adicionar Vértice**: cria novo ponto no local
+3. **Remover Vértice**: deleta ponto mais próximo
+4. **Adicionar Aresta (Mão Única/Dupla)**: conecta dois pontos
+5. **Remover Aresta**: desconecta dois pontos
 
-**O que faz:** Cria toda a interface gráfica com botões e painéis.
+`refatorar_indices()`
 
----
+Quando um vértice é removido, renumera todos os IDs sequencialmente (0, 1, 2...). Atualiza arestas para novos IDs.
 
-```python
-def importar_mapa()
-```
+`atualizar_interface_status()`
 
-**O que faz:** Abre diálogo para selecionar arquivo `.poly` e carrega o mapa.
+Atualiza rótulos mostrando origem, destino e estado atual.
 
----
+`atualizar_estrutura_grafo()`
 
-```python
-def converter_usar_osm()
-```
+Reconstrói grafo quando vértices/arestas mudam.
 
-**O que faz:** Abre diálogo para selecionar arquivo `.osm`, converte para `.poly` e carrega.
+`limpar_selecoes()`
+
+Reseta origem, destino, caminho e estatísticas.
+
+`copiar_imagem_grafo()`
+
+Renderiza grafo como imagem e copia para área de transferência.
 
 ---
 
-```python
-def calcular_caminho()
-```
-
-**O que faz:** Executa Dijkstra entre origem e destino selecionados.
-
-**Resultado:**
-- Mostra estatísticas (tempo, nós explorados, distância)
-- Destaca a rota no mapa com cor laranja
-
----
-
-```python
-def tratar_clique_mapa(x, y)
-```
-
-**O que faz:** Processa clique direito no mapa conforme o modo.
-
-**Modos:**
-1. **Buscar Caminho**: Seleciona origem (verde) e destino (vermelho)
-2. **Adicionar Vértice**: Cria novo ponto
-3. **Remover Vértice**: Deleta ponto mais próximo
-4. **Adicionar/Remover Aresta**: Conecta/desconecta dois pontos
-
----
-
-```python
-def copiar_imagem_grafo()
-```
-
-**O que faz:** Copia uma imagem do mapa para a área de transferência.
-
----
-
-```python
-def refatorar_indices()
-```
-
-**O que faz:** Reorganiza IDs dos vértices quando um é removido.
-
-**Processo:**
-1. Cria mapa de IDs antigos → novos
-2. Renumera todos os vértices sequencialmente
-3. Atualiza as arestas com novos IDs
-4. Remove arestas que apontam para vértices inexistentes
-
-**Explicação fácil:** Se você tem vértices 0, 1, 3, 5 e remove o 1, eles viram 0, 1, 2, 3.
-
----
-
-```python
-def atualizar_interface_status()
-```
-
-**O que faz:** Atualiza os rótulos de status na interface.
-
-**Mostra:**
-- ID da origem com cor verde
-- ID do destino com cor vermelha
-- Estado atual do programa
-
----
-
-```python
-def atualizar_estrutura_grafo()
-```
-
-**O que faz:** Reconstrói o grafo quando vértices ou arestas são adicionados/removidos.
-
-**Processo:**
-1. Reconstrói a lista de adjacência
-2. Cria mapa de vértices por ID
-3. Limpa caminho anterior
-4. Atualiza renderização
-
----
-
-```python
-def limpar_selecoes()
-```
-
-**O que faz:** Reseta origem, destino e caminho encontrado.
-
----
-
-### 6️⃣ **config.py** - Configurações
+### config.py - Configurações
 
 ```python
 FATOR_ESCALA = 2.0
 ```
 
-**O que é:** Fator para converter distâncias de pixels para metros.
+Multiplier para converter distâncias de pixels para metros.
 
-**Explicação fácil:** Se um segmento de rua tem 10 pixels na tela, ele representa 20 metros na realidade (10 × 2.0).
-
----
+Se `FATOR_ESCALA = 2.0` e a distância calculada é 50 pixels, então a distância real é 100 metros.
 
 ---
 
-## 🚀 Como Usar
+## Como Usar
 
-### **Modo Terminal (main.py)**
+### Via Interface Gráfica (Recomendado)
 
 ```bash
-python src/main.py
+cd src
+python main.py
 ```
 
-**Menu:**
-1. Escolha importar mapa OSM ou carregar POLY existente
-2. Digite a origem e destino
-3. Veja o resultado do Dijkstra
+**Workflow:**
 
-### **Modo Interface Gráfica (interface.py)**
+1. Clique em **"Importar Mapa (.poly)"** ou **"Converter e Usar Arquivo .osm"**
+2. Selecione arquivo
+3. Escolha modo no combo box (padrão: "Buscar Caminho")
+4. Clique direito no mapa 2 vezes para marcar origem (verde) e destino (vermelho)
+5. Clique **"Calcular Menor Caminho"**
+6. Rota aparece em laranja
 
-```bash
-python src/interface.py
-```
+**Checkboxes úteis:**
+- "Mostrar IDs dos Vértices" - mostra número de cada ponto
+- "Mostrar Pesos das Arestas" - distância em metros
+- "Ocultar Elementos Fora da Rota" - mostra apenas a rota
+- "Ocultar Apenas Vértices Não Selecionados" - modo focado
 
-**Passos:**
-1. Clique em "Importar Mapa (.poly)" ou "Converter e Usar Arquivo .osm"
-2. Selecione o arquivo desejado
-3. Use o combo box para escolher o modo de interação
-4. Clique direito no mapa para selecionar origem (1º clique) e destino (2º clique)
-5. Clique em "Calcular Menor Caminho"
-6. Veja a rota destacada em laranja
-
-**Recursos extras:**
-- 🔍 Roda do mouse: Zoom in/out
-- ☑️ **Mostrar IDs**: Exibe número de cada vértice
-- ☑️ **Mostrar Pesos**: Exibe distância de cada aresta
-- ☑️ **Ocultar Elementos Fora da Rota**: Mostra só a rota encontrada
-- ☑️ **Ocultar Apenas Vértices Não Selecionados**: Mostra origem, destino e rota
-- 📋 **Copiar Grafo**: Copia imagem para área de transferência
+**Controles:**
+- Roda do mouse: zoom
+- Arrastar: mover visualização
+- Copiar Grafo: copia imagem para clipboard
 
 ---
 
-## 📝 Exemplo de Uso
-
-### Arquivo `mapaUFG.poly`
+## Fluxo de Dados
 
 ```
-5 2 0 1
-0 0.0 0.0
-1 10.5 5.2
-2 20.3 15.7
-3 30.1 25.0
-4 15.0 35.5
-4 1
-0 0 1 2
-1 1 2 2
-2 2 3 1
-3 0 4 2
-0
+Arquivo OSM (XML)
+    ↓
+parse_osm() → converter_para_utm() + reduzir_escala()
+    ↓
+Arquivo .poly
+    ↓
+carregar_mapa_poly()
+    ↓
+Vertice[] + Aresta[]
+    ↓
+construir_grafo()
+    ↓
+Lista de Adjacência
+    ↓
+dijkstra()
+    ↓
+Caminho + Estatísticas
+    ↓
+GrafoItem.paint() → Visualização
 ```
 
-**Interpretação:**
-- 5 vértices, cada um com (id, x, y)
-- 4 arestas:
-  - 0→1 (mão dupla)
-  - 1→2 (mão dupla)
-  - 2→3 (mão única)
-  - 0→4 (mão dupla)
+---
 
-Se buscar de 0 para 3, Dijkstra encontrará: `0 → 1 → 2 → 3`
+## Detalhes Técnicos
+
+### Algoritmo de Dijkstra
+
+Greedy algorithm que encontra caminho mais curto em grafo com pesos positivos.
+
+**Complexidade:** O((V + E) log V) com heap
+
+Onde V = vértices, E = arestas
+
+### Conversão de Coordenadas
+
+Os dados do OSM vêm em latitude/longitude (WGS84). Para visualizar em 2D na tela, usamos:
+
+1. **Projeção UTM** (Universal Transverse Mercator) - converte para metros locais
+2. **Redimensionamento** - divide por fator para caber em pixels
+3. **Inversão de Y** - sistemas gráficos têm Y invertido
+
+### Estrutura de Dados
+
+- **Heap mínimo**: O(log n) para insert/extract → otimiza Dijkstra
+- **Lista de adjacência**: O(1) para acessar vizinhos
+- **Dicionário (mapa)**: O(1) para encontrar vértice por ID
 
 ---
 
-## 🎓 Resumo das Estruturas de Dados
+## Possíveis Melhorias
 
-| Estrutura | Complexidade | Uso |
-|-----------|-------------|-----|
-| **Heap** | O(log n) insert/extract | Otimizar Dijkstra |
-| **Lista de Adjacência** | O(1) acesso | Guardar grafo |
-| **Dijkstra com Heap** | O((V+E)log V) | Encontrar caminho mínimo |
-
----
-
-## 📚 Referências
-
-- **Algoritmo de Dijkstra:** Encontra o caminho mais curto em um grafo
-- **Heap Min:** Estrutura otimizada para prioridade
-- **Conversão UTM:** Transforma coordenadas de globo em sistema local
-- **OpenStreetMap:** Base de dados de mapas geográficos
+- [ ] Implementar A* (mais rápido que Dijkstra para navegação)
+- [ ] Salvar/carregar grafos em formato binário (mais rápido)
+- [ ] Suporte a múltiplas rotas alternativas
+- [ ] Calcular distância de ruas a pé vs. carro
+- [ ] Interface 3D (altura das ruas)
+- [ ] Busca por nome de local
 
 ---
 
-**Documentação atualizada:** 14 de junho de 2026
+## Notas de Desenvolvimento
+
+**Por que Dijkstra e não Bellman-Ford?**
+- Dijkstra é mais rápido (O(V log V) vs. O(VE))
+- Funciona com pesos positivos (distâncias sempre são)
+
+**Por que heap mínimo?**
+- Sem heap: O(V²)
+- Com heap: O((V+E) log V)
+- Grande diferença em grafos grandes
+
+**Por que converter OSM?**
+- OSM tem dados desnecessários
+- Filtrar apenas highways reduz tamanho
+- Converter para UTM deixa cálculos em metros
+
+---
+
+**Documentação atualizada:** Junho 2026
