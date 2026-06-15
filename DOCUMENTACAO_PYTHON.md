@@ -4,8 +4,13 @@
 
 Este é um sistema de cálculo de rotas que utiliza o algoritmo de Dijkstra para encontrar o caminho mais curto entre dois pontos em um mapa. O projeto integra processamento de dados geográficos (conversão de coordenadas, parsing de arquivos OSM) com visualização gráfica interativa.
 
-**Linguagens:** Python (63.5%) e C (36.5%)  
-**Documentação focada:** Código Python
+**Linguagem:** Python (100%)
+
+**Alunos (Grupo 8):**
+- Andriel Pereira e Silva
+- Guilherme Oliveira
+- Christian Pereira Da Silva
+- Lucas Rocha Rodrigues
 
 ---
 
